@@ -1,38 +1,49 @@
-from flask import Flask, jsonify, request
+from flask import Flask, request, jsonify
+from flask_cors import CORS
 import requests
 import os
 from dotenv import load_dotenv
 
 load_dotenv()
+
 app = Flask(__name__)
+CORS(app)
 
-API_KEY = os.getenv("TWELVE_API_KEY")
+FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY")
 
-@app.route('/stock', methods=['GET'])
-def get_stock_data():
+@app.route('/')
+def home():
+    return "✅ Stock API backend is running"
+
+@app.route('/stock')
+def get_stock():
     symbol = request.args.get('symbol')
     if not symbol:
-        return jsonify({"error": "Symbol is required"}), 400
+        return jsonify({"error": "No symbol provided"}), 400
 
-    url = f"https://api.twelvedata.com/quote?symbol={symbol}&apikey={API_KEY}"
-    response = requests.get(url)
-    data = response.json()
+    try:
+        profile_url = f"https://finnhub.io/api/v1/stock/profile2?symbol={symbol}&token={FINNHUB_API_KEY}"
+        quote_url = f"https://finnhub.io/api/v1/quote?symbol={symbol}&token={FINNHUB_API_KEY}"
 
-    if "code" in data:
-        return jsonify({"error": data.get("message", "API error")}), 500
+        profile_res = requests.get(profile_url).json()
+        quote_res = requests.get(quote_url).json()
 
-    return jsonify({
-    "symbol": data.get("symbol"),
-    "name": data.get("name"),
-    "price": data.get("price") or data.get("previous_close"),  # 👈 FIXED LINE
-    "open": data.get("open"),
-    "high": data.get("high"),
-    "low": data.get("low"),
-    "previous_close": data.get("previous_close"),
-    "timestamp": data.get("timestamp")
-})
+        if "name" not in profile_res:
+            return jsonify({"error": "Invalid symbol or no data"}), 404
 
+        return jsonify({
+            "symbol": symbol,
+            "name": profile_res.get("name"),
+            "price": quote_res.get("c"),
+            "open": quote_res.get("o"),
+            "high": quote_res.get("h"),
+            "low": quote_res.get("l"),
+            "previous_close": quote_res.get("pc"),
+            "timestamp": quote_res.get("t")
+        })
 
-if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port, debug=True)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+if __name__ == "__main__":
+    app.run(debug=True)
