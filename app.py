@@ -9,12 +9,19 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)
 
+# Load your Finnhub API key from environment
 FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY")
 
+# 🔁 Health check route for Render
 @app.route('/')
 def home():
-    return "✅ Stock API backend is running"
+    return "✅ Flask backend is live"
 
+@app.route('/health')
+def health():
+    return "OK", 200
+
+# 📈 Stock data route
 @app.route('/stock')
 def get_stock():
     symbol = request.args.get('symbol')
@@ -22,23 +29,25 @@ def get_stock():
         return jsonify({"error": "No symbol provided"}), 400
 
     try:
+        # API requests
         profile_url = f"https://finnhub.io/api/v1/stock/profile2?symbol={symbol}&token={FINNHUB_API_KEY}"
         quote_url = f"https://finnhub.io/api/v1/quote?symbol={symbol}&token={FINNHUB_API_KEY}"
 
         profile_res = requests.get(profile_url).json()
         quote_res = requests.get(quote_url).json()
 
-        if "name" not in profile_res:
-            return jsonify({"error": "Invalid symbol or no data"}), 404
+        # Handle invalid symbol or empty data
+        if "name" not in profile_res or not profile_res["name"]:
+            return jsonify({"error": "Invalid stock symbol"}), 404
 
         return jsonify({
             "symbol": symbol,
             "name": profile_res.get("name"),
-            "price": quote_res.get("c"),
-            "open": quote_res.get("o"),
-            "high": quote_res.get("h"),
-            "low": quote_res.get("l"),
-            "previous_close": quote_res.get("pc"),
+            "price": str(quote_res.get("c")),
+            "open": str(quote_res.get("o")),
+            "high": str(quote_res.get("h")),
+            "low": str(quote_res.get("l")),
+            "previous_close": str(quote_res.get("pc")),
             "timestamp": quote_res.get("t")
         })
 
